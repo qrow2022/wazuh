@@ -71,6 +71,8 @@ typedef struct wm_ciscat {
     unsigned int timeout;           // Default execution time limit (seconds)
     char *java_path;                // Path to Java Runtime Environment
     char *ciscat_path;              // Path to CIS-CAT scanner tool
+     //TODO: NR - declare version of CIS-CAT to be used
+    //char *ciscat_version;
     wm_ciscat_flags flags;          // Default flags
     wm_ciscat_state state;          // Running state
     wm_ciscat_eval *evals;          // Evaluations (linked list)
