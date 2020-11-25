@@ -146,6 +146,46 @@ void* wm_ciscat_main(wm_ciscat *ciscat) {
         mterror(WM_CISCAT_LOGTAG, "CIS-CAT tool not found at '%s'.", cis_path);
         ciscat->flags.error = 1;
     }
+    
+    //TODO: NR - Add check for valid version number in config file
+       //Need to determine format for differentiating v3_old from v3_new.
+       //Does not pick command paths nor which parser to use, just determine if valid version number.
+    /*
+    if (ciscat->ciscat_version) {
+        switch (ciscat->ciscat_version) {
+            case "V3_OLD":
+            case "v3_old":
+                //check for old version of v3 (needs better ID)
+                //v3_old is acceptable version, continue.
+                break;
+            case "V3_NEW":
+            case "v3_new":
+                //check for new version of v3 (needs better ID)
+                //v3_new is acceptable version, continue.
+                break;
+            case "V4":
+            case "v4":
+                //check for v4 (needs better ID)
+                //v4 is acceptable version, continue.
+                break;
+            default:
+                //I don't know what you entered,
+                //this is not a valid version number, or not yet reconized.
+                //stop CIS-CAT Eval.
+                mterror(WM_CISCAT_LOGTAG, "Defined version of CIS-CAT is not valid.");
+                ciscat->flags.error = 1;
+        }
+    } else {
+        //CIS-CAT version not defined, assume v3_old
+        //tell the user
+        mtinfo(WM_CISCAT_LOGTAG, "CIS-CAT version not specified. Assume old v3.");
+        //set version to old v3 since user didn't tell us which one.
+            //doesn't have to set to v3_old here, could just default for all options.
+            //still should tell the user though.
+        ciscat->ciscat_version = v3_old;
+    }
+    */ //TODO: NR - End of CIS-CAT version check, uncomment and update version format
+         //ensure capitalization catches?
 
     // Main loop
 
@@ -267,15 +307,41 @@ void wm_ciscat_run(wm_ciscat_eval *eval, char *path, int id, const char * java_p
     os_calloc(OS_MAXSTR, sizeof(char), ciscat_script);
 
     snprintf(ciscat_script, OS_MAXSTR - 1, "\"%s\\CIS-CAT.BAT\"", path);
-
+    //TODO: NR - remove this v3 build, replaced by below switch
+/*
+    switch (ciscat->ciscat_version) {
+        case "v4":
+            //use v4 new assessor binary name
+            snprintf(ciscat_script, OS_MAXSTR - 1, "\"%s\\Assessor-CLI.BAT\"", path);
+            break;
+        default:
+            //if not v4, then its v3, same for both v3_old and v3_new
+            snprintf(ciscat_script, OS_MAXSTR - 1, "\"%s\\CIS-CAT.BAT\"", path);
+    }
+*/
+    
     // Create arguments
 
     wm_strcat(&command, ciscat_script, '\0');
 
     // Accepting Terms of Use
 
+    //TODO: NR - replace below with switch
     wm_strcat(&command, "-a", ' ');
-
+/*
+    switch (ciscat->ciscat_version) {
+        case "v4":
+            //v4 doesn't need an acceptance to terms.
+            // crashes if (-a) is passed.
+            break;
+        default:
+            //all versions of v3 use terms, agree to use
+            wm_strcat(&command, "-a", ' ');
+    }
+*/
+    
+    // no changes needed for benchmark and profile selectionm
+    // v4 uses the same switches and format
     switch (eval->type) {
     case WM_CISCAT_XCCDF:
 
@@ -303,6 +369,11 @@ void wm_ciscat_run(wm_ciscat_eval *eval, char *path, int id, const char * java_p
         os_free(ciscat_script);
         pthread_exit(NULL);
     }
+    //
+    //
+    //TODO: NR - Remove below command builds in favor of below switch
+    //
+    //
 
     // Specify location for reports
 
@@ -329,6 +400,49 @@ void wm_ciscat_run(wm_ciscat_eval *eval, char *path, int id, const char * java_p
     // Add not selected checks
 
     wm_strcat(&command, "-y", ' ');
+    
+/* TODO: NR -   here is switch to use
+    switch (ciscat->ciscat_version) {
+        case "v4":
+            //build commands for v4 usage
+
+            //specify reports location
+            wm_strcat(&command, "-rd", ' ');
+            wm_strcat(&command, TMP_DIR, ' ');
+
+            //specify leading name for report
+                //v4 also appends timestamp to report name
+                //timestamp format
+            wm_strcat(&command, "-rp", ' ');
+            wm_strcat(&command, "ciscat-report-v4", ' ');
+
+            //specify to build text reports as well
+            wm_strcat(&command, "-txt", ' ');
+            break;
+        default:
+            //build commands for v3
+
+            // Specify location for reports
+            wm_strcat(&command, "-r", ' ');
+            wm_strcat(&command, TMP_DIR, ' ');
+
+            // Set reports file name
+            wm_strcat(&command, "-rn", ' ');
+            wm_strcat(&command, "ciscat-report-v3", ' ');
+
+            // Get xml reports
+            wm_strcat(&command, "-x", ' ');
+
+            // Get txt reports
+            wm_strcat(&command, "-t", ' ');
+
+            // Do not create HTML report
+            wm_strcat(&command, "-n", ' ');
+
+            // Add not selected checks
+            wm_strcat(&command, "-y", ' ');
+    }
+*/
 
     // Send rootcheck message
 
@@ -367,6 +481,7 @@ void wm_ciscat_run(wm_ciscat_eval *eval, char *path, int id, const char * java_p
     os_free(command);
     os_free(ciscat_script);
 
+    //TODO: NR - Update parsing for v4
     // Get assessment results
     if (!ciscat->flags.error) {
         scan_info = wm_ciscat_txt_parser();
@@ -403,6 +518,7 @@ void wm_ciscat_run(wm_ciscat_eval *eval, char *path, int id, const char * java_p
 
 #else
 
+//TODO: NR - update UNIX CIS-CAT
 // Run a CIS-CAT policy for UNIX systems
 
 void wm_ciscat_run(wm_ciscat_eval *eval, char *path, int id, const char * java_path) {
@@ -412,6 +528,18 @@ void wm_ciscat_run(wm_ciscat_eval *eval, char *path, int id, const char * java_p
     char *output = NULL;
     char msg[OS_MAXSTR];
     char *ciscat_script = "./CIS-CAT.sh";
+    //TODO: NR - Remove old script name above and replace with switch below
+/*
+    switch (ciscat->ciscat_version){
+        case "v4":
+            //use v4 binary name
+            char *ciscat_script = "./Assessor-CLI-sh";
+            break;
+        default:
+            //by default assume v3
+            char *ciscat_script = "./CIS-CAT.sh";
+    }
+*/
     wm_scan_data *scan_info = NULL;
 
     // Create arguments
@@ -421,6 +549,18 @@ void wm_ciscat_run(wm_ciscat_eval *eval, char *path, int id, const char * java_p
     // Accepting Terms of Use
 
     wm_strcat(&command, "-a", ' ');
+    //TODO: NR - replace above with below switch
+/*
+    switch (ciscat->ciscat_version) {
+        case "v4":
+            //v4 doesn't need an acceptance to terms.
+            // crashes if (-a) is passed.
+            break;
+        default:
+            //all versions of v3 use terms, agree to use
+            wm_strcat(&command, "-a", ' ');
+    }
+*/
 
     switch (eval->type) {
     case WM_CISCAT_XCCDF:
@@ -468,6 +608,50 @@ void wm_ciscat_run(wm_ciscat_eval *eval, char *path, int id, const char * java_p
     // Add not selected checks
 
     wm_strcat(&command, "-y", ' ');
+    
+    //TODO: NR - Replace above with switch below
+/*
+    switch (ciscat->ciscat_version){
+        case "v4":
+            //build command switches for v4 usage
+
+            //specify reports location
+            wm_strcat(&command, "-rd", ' ');
+            wm_strcat(&command, WM_CISCAT_REPORTS, ' ');
+
+            //specify leading name for report
+                //v4 also appends timestamp to report name
+                //timestamp format
+            wm_strcat(&command, "-rp", ' ');
+            wm_strcat(&command, "ciscat-report-v4", ' ');
+
+            //specify to build text reports as well
+            wm_strcat(&command, "-txt", ' ');
+            break;
+        default:
+            //build commands for v3
+
+            // Specify location for reports
+            wm_strcat(&command, "-r", ' ');
+            wm_strcat(&command, TMP_DIR, ' ');
+
+            // Set reports file name
+            wm_strcat(&command, "-rn", ' ');
+            wm_strcat(&command, "ciscat-report-v3", ' ');
+
+            // Get xml reports
+            wm_strcat(&command, "-x", ' ');
+
+            // Get txt reports
+            wm_strcat(&command, "-t", ' ');
+
+            // Do not create HTML report
+            wm_strcat(&command, "-n", ' ');
+
+            // Add not selected checks
+            wm_strcat(&command, "-y", ' ');
+    }
+*/
 
     // Send rootcheck message
 
@@ -542,6 +726,7 @@ void wm_ciscat_run(wm_ciscat_eval *eval, char *path, int id, const char * java_p
     os_free(output);
     os_free(command);
 
+    //TODO: NR - update UNIX parsing
     // Get assessment results
     if (!ciscat->flags.error) {
         scan_info = wm_ciscat_txt_parser();
@@ -578,6 +763,7 @@ void wm_ciscat_run(wm_ciscat_eval *eval, char *path, int id, const char * java_p
 
 #endif
 
+//TODO: NR - Update policy retrival for v4
 char * wm_ciscat_get_profile() {
 
     char * profile = NULL;
@@ -591,6 +777,13 @@ char * wm_ciscat_get_profile() {
     #else
         snprintf(file, OS_MAXSTR - 1, "%s%s", WM_CISCAT_REPORTS, "/ciscat-report.xml");
     #endif
+    /* TODO: NR - Not yet finished
+    #ifdef WIN32
+        switch (ciscat->ciscat_version) {
+            case "v4":
+                snprintf(file, OS_MAXSTR - 1, "%s%s", TMP_DIR, "\\ciscat-report-v4-.xml");
+        }
+*/
 
 
 #ifdef WIN32
@@ -623,6 +816,7 @@ char * wm_ciscat_get_profile() {
     return profile;
 }
 
+    //TODO: NR - update retrival for v4
 wm_scan_data* wm_ciscat_txt_parser(){
 
     char file[OS_MAXSTR];
@@ -824,6 +1018,7 @@ wm_scan_data* wm_ciscat_txt_parser(){
     return info;
 }
 
+    //TODO: NR - Update for v4 parsing
 void wm_ciscat_preparser(){
 
     char in_file[OS_MAXSTR];
@@ -1041,7 +1236,8 @@ char* wm_ciscat_remove_tags(char* string){
     return result;
 
 }
-
+    
+//TODO: NR - Update XML Parser for v4 and newer v3
 void wm_ciscat_xml_parser(){
 
     OS_XML xml;
@@ -1157,6 +1353,7 @@ void wm_ciscat_xml_parser(){
 
 }
 
+    //TODO: NR - Update XML Parser for v4 and newer v3
 wm_rule_data* read_group(const OS_XML *xml, XML_NODE node, wm_rule_data *rule_info, char *group){
 
     const char *XML_GROUP = "Group";
@@ -1222,6 +1419,7 @@ wm_rule_data* read_group(const OS_XML *xml, XML_NODE node, wm_rule_data *rule_in
     return rule_info;
 }
 
+    //TODO: NR - Update XML Parser for v4 and newer v3
 wm_rule_data* read_rule_info(XML_NODE node, wm_rule_data *rule, char *group) {
 
     /* XML definitions */
@@ -1293,7 +1491,8 @@ wm_rule_data* read_rule_info(XML_NODE node, wm_rule_data *rule, char *group) {
     return rule;
 }
 
-
+//TODO: NR - Check against new v3 and v4 changes.
+   //Posibly need changes to include version of scanner
 void wm_ciscat_send_scan(wm_scan_data *info, int id){
 
     wm_rule_data *rule;
@@ -1434,12 +1633,17 @@ void wm_ciscat_info() {
             mtinfo(WM_CISCAT_LOGTAG, "Profile: [%s]", eval->profile);
         }
     }
+    
+    //TODO: NR - Log the chosen version of CIS-CAT
+    //mtinfo(WM_CISCAT_LOGTAG, "CISCAT Version: %d", ciscat->ciscat_version);
 
     mtinfo(WM_CISCAT_LOGTAG, "SHOW_MODULE_CISCAT: ----");
 }
 
 
 // Get read data
+
+    //TODO: NR - add new v3 and v4 version tags
 
 cJSON *wm_ciscat_dump(const wm_ciscat * ciscat) {
 
@@ -1448,7 +1652,8 @@ cJSON *wm_ciscat_dump(const wm_ciscat * ciscat) {
 
     if (ciscat->flags.enabled) cJSON_AddStringToObject(wm_cscat,"disabled","no"); else cJSON_AddStringToObject(wm_cscat,"disabled","yes");
     if (ciscat->flags.scan_on_start) cJSON_AddStringToObject(wm_cscat,"scan-on-start","yes"); else cJSON_AddStringToObject(wm_cscat,"scan-on-start","no");
-
+//TODO: NR - get the version from the config file and push it into the pointer.
+    //if (ciscat->ciscat_version) cJSON_AddItemToObject(wm_cscat,"ciscat_version",ciscat->ciscat_version);
 
     sched_scan_dump(&(ciscat->scan_config), wm_cscat);
 
