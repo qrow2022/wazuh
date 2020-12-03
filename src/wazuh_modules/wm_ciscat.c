@@ -370,10 +370,8 @@ void wm_ciscat_run(wm_ciscat_eval *eval, char *path, int id, const char * java_p
 
     os_calloc(OS_MAXSTR, sizeof(char), ciscat_script);
 
-    snprintf(ciscat_script, OS_MAXSTR - 1, "\"%s\\CIS-CAT.BAT\"", path);
-    //TODO: NR - remove this v3 build, replaced by below switch
- 
- 
+    //TODO: NR - Build v3 and v4 switches
+
     int ciscat_version_check_response = NULL;
     ciscat_version_check_response = wm_ciscat_version_check(ciscat->ciscat_version);
 
