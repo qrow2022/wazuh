@@ -805,20 +805,40 @@ char * wm_ciscat_get_profile() {
     char file[OS_MAXSTR];
     FILE *fp;
     int i;
+  
 
-    #ifdef WIN32
-        snprintf(file, OS_MAXSTR - 1, "%s%s", TMP_DIR, "\\ciscat-report.xml");
-    #else
-        snprintf(file, OS_MAXSTR - 1, "%s%s", WM_CISCAT_REPORTS, "/ciscat-report.xml");
-    #endif
-    /* TODO: NR - Not yet finished
-    #ifdef WIN32
-        switch (ciscat->ciscat_version) {
-            case "v4":
+    int ciscat_version_check_response = NULL;
+    ciscat_version_check_response = wm_ciscat_version_check(ciscat->ciscat_version);
+
+    switch (ciscat_version_check_response) {
+        case "4":
+            //Ciscat v4
+
+            //TODO: Add timestamp detection
+            /*
+            #ifdef WIN32
                 snprintf(file, OS_MAXSTR - 1, "%s%s", TMP_DIR, "\\ciscat-report-v4-.xml");
-        }
-*/
+            #else
+                snprintf(file, OS_MAXSTR - 1, "%s%s", WM_CISCAT_REPORTS, "/ciscat-report-v4-.xml");
+            #endif
 
+            */
+
+            mtinfo(WM_CISCAT_LOGTAG, "CIS-CAT v4 parsing not finished");
+
+            break;
+
+        default:
+            //all other versions of Ciscat
+                //currently only v3
+            #ifdef WIN32
+                snprintf(file, OS_MAXSTR - 1, "%s%s", TMP_DIR, "\\ciscat-report.xml");
+            #else
+                snprintf(file, OS_MAXSTR - 1, "%s%s", WM_CISCAT_REPORTS, "/ciscat-report.xml");
+            #endif
+    }
+        
+        
 
 #ifdef WIN32
     if ((fp = fopen(file, "rb"))) {
@@ -866,11 +886,39 @@ wm_scan_data* wm_ciscat_txt_parser(){
 
     // Define report location
 
-#ifdef WIN32
-    snprintf(file, OS_MAXSTR - 1, "%s%s", TMP_DIR, "\\ciscat-report.txt");
-#else
-    snprintf(file, OS_MAXSTR - 1, "%s%s", WM_CISCAT_REPORTS, "/ciscat-report.txt");
-#endif
+    //TODO: NR - Not yet finished
+        //Add timestamp info to v4
+
+    int ciscat_version_check_response = NULL;
+    ciscat_version_check_response = wm_ciscat_version_check(ciscat->ciscat_version);
+
+    switch (ciscat_version_check_response) {
+        case "4":
+            //Ciscat v4
+
+            //TODO: Add timestamp detection
+            /*
+            #ifdef WIN32
+                snprintf(file, OS_MAXSTR - 1, "%s%s", TMP_DIR, "\\ciscat-report-v4-.txt");
+            #else
+                snprintf(file, OS_MAXSTR - 1, "%s%s", WM_CISCAT_REPORTS, "/ciscat-report-v4-.txt");
+            #endif
+            */
+
+            mtinfo(WM_CISCAT_LOGTAG, "CIS-CAT v4 parsing not finished");
+
+            break;
+
+        default:
+            //all other versions of Ciscat
+            //currently only v3
+            #ifdef WIN32
+                snprintf(file, OS_MAXSTR - 1, "%s%s", TMP_DIR, "\\ciscat-report.txt");
+            #else
+                snprintf(file, OS_MAXSTR - 1, "%s%s", WM_CISCAT_REPORTS, "/ciscat-report.txt");
+            #endif
+    }
+
 
     if ((fp = fopen(file, "r"))){
 
