@@ -8,7 +8,8 @@
  * License (version 2) as published by the FSF - Free Software
  * Foundation.
  */
-#ifdef ENABLE_CISCAT
+//TODO: NR - Uncomment
+ //#ifdef ENABLE_CISCAT
 #include "wmodules.h"
 
 static wm_ciscat *ciscat;                             // Pointer to configuration
@@ -19,6 +20,7 @@ static int queue_fd;                                // Output queue file descrip
 #endif
 
 static void* wm_ciscat_main(wm_ciscat *ciscat);        // Module main function. It won't return
+static int wm_ciscat_version_check(char * ciscat_version_input)  //CIS-CAT Version Check
 static void wm_ciscat_setup(wm_ciscat *_ciscat);       // Setup module
 static void wm_ciscat_check();                       // Check configuration, disable flag
 static void wm_ciscat_run(wm_ciscat_eval *eval, char *path, int id, const char * java_path);      // Run a CIS-CAT policy
@@ -150,42 +152,37 @@ void* wm_ciscat_main(wm_ciscat *ciscat) {
     //TODO: NR - Add check for valid version number in config file
        //Need to determine format for differentiating v3_old from v3_new.
        //Does not pick command paths nor which parser to use, just determine if valid version number.
-    /*
-    if (ciscat->ciscat_version) {
-        switch (ciscat->ciscat_version) {
-            case "V3_OLD":
-            case "v3_old":
-                //check for old version of v3 (needs better ID)
-                //v3_old is acceptable version, continue.
+
+    if (ciscat->ciscat_version){
+        //Call version check
+        int ciscat_version_check_response = NULL;
+        ciscat_version_check_response = wm_ciscat_version_check(ciscat->ciscat_version);
+
+        switch (ciscat_version_check_response) {
+            case "4":
+                //ciscat v4 detected
                 break;
-            case "V3_NEW":
-            case "v3_new":
-                //check for new version of v3 (needs better ID)
-                //v3_new is acceptable version, continue.
+            case "1":
+                //ciscat version newer than v3.0.43
                 break;
-            case "V4":
-            case "v4":
-                //check for v4 (needs better ID)
-                //v4 is acceptable version, continue.
+            case "0":
+                //ciscat version older than v3.0.42
                 break;
             default:
-                //I don't know what you entered,
-                //this is not a valid version number, or not yet reconized.
-                //stop CIS-CAT Eval.
+                //unknown ciscat version
+                //exit
                 mterror(WM_CISCAT_LOGTAG, "Defined version of CIS-CAT is not valid.");
                 ciscat->flags.error = 1;
+
         }
+
     } else {
-        //CIS-CAT version not defined, assume v3_old
+        //CIS-CAT version not defined, assume version is older than v3.0.43
         //tell the user
-        mtinfo(WM_CISCAT_LOGTAG, "CIS-CAT version not specified. Assume old v3.");
+        mtinfo(WM_CISCAT_LOGTAG, "CIS-CAT version not specified. Assume CIS-CAT version is before 3.0.43.");
         //set version to old v3 since user didn't tell us which one.
-            //doesn't have to set to v3_old here, could just default for all options.
-            //still should tell the user though.
-        ciscat->ciscat_version = v3_old;
+        ciscat->ciscat_version = "3.0.42";
     }
-    */ //TODO: NR - End of CIS-CAT version check, uncomment and update version format
-         //ensure capitalization catches?
 
     // Main loop
 
@@ -253,6 +250,73 @@ void* wm_ciscat_main(wm_ciscat *ciscat) {
     return NULL;
 }
 
+
+//TODO: NR - Finish version check
+//CIS-CAT Version Check
+
+int wm_ciscat_version_check(char * ciscat_version_input) {
+
+    //parse version input.
+        //delimiter is the period (.)
+        //store each number as an int
+    int ciscat_major;
+    int ciscat_minor;
+    int ciscat_patch;
+
+    char * save_ptr = NULL;
+
+    ciscat_major = strtok_s(ciscat_version_input, ".", &save_ptr);
+    ciscat_minor = strtok_s(NULL, ".", &save_ptr);
+    ciscat_patch = strtok_s(NULL, ".", &save_ptr);
+
+    //check if it's in the proper format of 
+        //  major.minor.patch (X.Y.Z)
+    if (!ciscat_major || !ciscat_minor || !ciscat_patch) {
+        merror(WM_CISCAT_LOGTAG, "Provided CIS-CAT version is invalid.");
+        merror(WM_CISCAT_LOGTAG, "Invalid CIS-CAT version input was: " + ciscat_version_input);
+        ciscat->flags.error = 1;
+        return -1;
+    }
+
+    //check the version
+
+    if (atoi(ciscat_major) >= 4) {
+
+        //The CIS-CAT version is v4
+        //send that back to the program
+        return 4;
+
+    }else if (atoi(ciscat_major) == 3 && (atoi(ciscat_minor) >= 0) && (atoi(ciscat_patch) >= 43)) {
+        
+        //The CIS-CAT version is minimum v3.0.43
+        //send that back to the program
+        //Return 1 for newer v3
+        return 1;
+
+    }else if (atoi(ciscat_major) == 3 && (atoi(ciscat_minor) >= 0) && (atoi(ciscat_patch) <= 43)) {
+
+        //The CIS-CAT version is less than v3.0.43
+        //send that back to the program
+        //return 0 for "original" version
+        return 0;
+
+    }else {
+
+        //the user specified something that is less than at least v3.
+        //we don't know anthing about that.
+        //Error out and tell the user.
+        merror(WM_CISCAT_LOGTAG, "Provided CIS-CAT version is invalid.");
+        merror(WM_CISCAT_LOGTAG, "Invalid CIS-CAT version input was: " + ciscat_version_input);
+        ciscat->flags.error = 1;
+        return -1;
+
+    }
+
+}
+
+
+
+
 // Setup module
 
 void wm_ciscat_setup(wm_ciscat *_ciscat) {
@@ -308,103 +372,49 @@ void wm_ciscat_run(wm_ciscat_eval *eval, char *path, int id, const char * java_p
 
     snprintf(ciscat_script, OS_MAXSTR - 1, "\"%s\\CIS-CAT.BAT\"", path);
     //TODO: NR - remove this v3 build, replaced by below switch
-/*
-    switch (ciscat->ciscat_version) {
-        case "v4":
+ 
+ 
+    int ciscat_version_check_response = NULL;
+    ciscat_version_check_response = wm_ciscat_version_check(ciscat->ciscat_version);
+
+    switch (ciscat_version_check_response) {
+        case "4":
+            //ciscat v4 detected
             //use v4 new assessor binary name
             snprintf(ciscat_script, OS_MAXSTR - 1, "\"%s\\Assessor-CLI.BAT\"", path);
-            break;
-        default:
-            //if not v4, then its v3, same for both v3_old and v3_new
-            snprintf(ciscat_script, OS_MAXSTR - 1, "\"%s\\CIS-CAT.BAT\"", path);
-    }
-*/
-    
-    // Create arguments
 
-    wm_strcat(&command, ciscat_script, '\0');
+            // Create arguments
+            wm_strcat(&command, ciscat_script, '\0');
 
-    // Accepting Terms of Use
 
-    //TODO: NR - replace below with switch
-    wm_strcat(&command, "-a", ' ');
-/*
-    switch (ciscat->ciscat_version) {
-        case "v4":
-            //v4 doesn't need an acceptance to terms.
-            // crashes if (-a) is passed.
-            break;
-        default:
-            //all versions of v3 use terms, agree to use
-            wm_strcat(&command, "-a", ' ');
-    }
-*/
-    
-    // no changes needed for benchmark and profile selectionm
-    // v4 uses the same switches and format
-    switch (eval->type) {
-    case WM_CISCAT_XCCDF:
+            switch (eval->type) {
+            case WM_CISCAT_XCCDF:
 
-        snprintf(eval_path, OS_MAXSTR - 1, "\"%s\"", eval->path);
+                snprintf(eval_path, OS_MAXSTR - 1, "\"%s\"", eval->path);
 
-        wm_strcat(&command, "-b", ' ');
-        wm_strcat(&command, eval_path, ' ');
+                wm_strcat(&command, "-b", ' ');
+                wm_strcat(&command, eval_path, ' ');
 
-        if (eval->profile) {
-            wm_strcat(&command, "-p", ' ');
-            wm_strcat(&command, eval->profile, ' ');
-        }
-        break;
-    case WM_CISCAT_OVAL:
-        mterror(WM_CISCAT_LOGTAG, "OVAL is an invalid content type. Exiting...");
-        ciscat->flags.error = 1;
-        os_free(command);
-        os_free(ciscat_script);
-        pthread_exit(NULL);
-        break;
-    default:
-        mterror(WM_CISCAT_LOGTAG, "Unspecified content type for file '%s'. This shouldn't happen.", eval->path);
-        ciscat->flags.error = 1;
-        os_free(command);
-        os_free(ciscat_script);
-        pthread_exit(NULL);
-    }
-    //
-    //
-    //TODO: NR - Remove below command builds in favor of below switch
-    //
-    //
+                if (eval->profile) {
+                    wm_strcat(&command, "-p", ' ');
+                    wm_strcat(&command, eval->profile, ' ');
+                }
+                break;
+            case WM_CISCAT_OVAL:
+                mterror(WM_CISCAT_LOGTAG, "OVAL is an invalid content type. Exiting...");
+                ciscat->flags.error = 1;
+                os_free(command);
+                os_free(ciscat_script);
+                pthread_exit(NULL);
+                break;
+            default:
+                mterror(WM_CISCAT_LOGTAG, "Unspecified content type for file '%s'. This shouldn't happen.", eval->path);
+                ciscat->flags.error = 1;
+                os_free(command);
+                os_free(ciscat_script);
+                pthread_exit(NULL);
+            }
 
-    // Specify location for reports
-
-    wm_strcat(&command, "-r", ' ');
-    wm_strcat(&command, TMP_DIR, ' ');
-
-    // Set reports file name
-
-    wm_strcat(&command, "-rn", ' ');
-    wm_strcat(&command, "ciscat-report", ' ');
-
-    // Get xml reports
-
-    wm_strcat(&command, "-x", ' ');
-
-    // Get txt reports
-
-    wm_strcat(&command, "-t", ' ');
-
-    // Do not create HTML report
-
-    wm_strcat(&command, "-n", ' ');
-
-    // Add not selected checks
-
-    wm_strcat(&command, "-y", ' ');
-    
-/* TODO: NR -   here is switch to use
-    switch (ciscat->ciscat_version) {
-        case "v4":
-            //build commands for v4 usage
 
             //specify reports location
             wm_strcat(&command, "-rd", ' ');
@@ -418,9 +428,48 @@ void wm_ciscat_run(wm_ciscat_eval *eval, char *path, int id, const char * java_p
 
             //specify to build text reports as well
             wm_strcat(&command, "-txt", ' ');
+            
+
             break;
         default:
-            //build commands for v3
+            //version 3 binary
+            snprintf(ciscat_script, OS_MAXSTR - 1, "\"%s\\CIS-CAT.BAT\"", path);
+
+            // Create arguments
+            wm_strcat(&command, ciscat_script, '\0');
+
+            // Accepting Terms of Use
+            wm_strcat(&command, "-a", ' ');
+
+
+            switch (eval->type) {
+            case WM_CISCAT_XCCDF:
+
+                snprintf(eval_path, OS_MAXSTR - 1, "\"%s\"", eval->path);
+
+                wm_strcat(&command, "-b", ' ');
+                wm_strcat(&command, eval_path, ' ');
+
+                if (eval->profile) {
+                    wm_strcat(&command, "-p", ' ');
+                    wm_strcat(&command, eval->profile, ' ');
+                }
+                break;
+            case WM_CISCAT_OVAL:
+                mterror(WM_CISCAT_LOGTAG, "OVAL is an invalid content type. Exiting...");
+                ciscat->flags.error = 1;
+                os_free(command);
+                os_free(ciscat_script);
+                pthread_exit(NULL);
+                break;
+            default:
+                mterror(WM_CISCAT_LOGTAG, "Unspecified content type for file '%s'. This shouldn't happen.", eval->path);
+                ciscat->flags.error = 1;
+                os_free(command);
+                os_free(ciscat_script);
+                pthread_exit(NULL);
+            }
+
 
             // Specify location for reports
             wm_strcat(&command, "-r", ' ');
@@ -441,8 +490,8 @@ void wm_ciscat_run(wm_ciscat_eval *eval, char *path, int id, const char * java_p
 
             // Add not selected checks
             wm_strcat(&command, "-y", ' ');
+
     }
-*/
 
     // Send rootcheck message
 
