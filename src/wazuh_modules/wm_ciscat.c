@@ -563,7 +563,8 @@ void wm_ciscat_run(wm_ciscat_eval *eval, char *path, int id, const char * java_p
     SendMSG(0, msg, "rootcheck", ROOTCHECK_MQ);
 }
 
-#else
+//TODO: NR - uncomment
+//#else
 
 //TODO: NR - update UNIX CIS-CAT
 // Run a CIS-CAT policy for UNIX systems
@@ -575,92 +576,44 @@ void wm_ciscat_run(wm_ciscat_eval *eval, char *path, int id, const char * java_p
     char *output = NULL;
     char msg[OS_MAXSTR];
     char *ciscat_script = "./CIS-CAT.sh";
-    //TODO: NR - Remove old script name above and replace with switch below
-/*
-    switch (ciscat->ciscat_version){
-        case "v4":
+    
+    //TODO: NR - UNIX CIS-CAT EVAL
+
+    int ciscat_version_check_response = NULL;
+    ciscat_version_check_response = wm_ciscat_version_check(ciscat->ciscat_version);
+
+    switch (ciscat_version_check_response){
+        case "4":
+
             //use v4 binary name
             char *ciscat_script = "./Assessor-CLI-sh";
-            break;
-        default:
-            //by default assume v3
-            char *ciscat_script = "./CIS-CAT.sh";
-    }
-*/
-    wm_scan_data *scan_info = NULL;
 
-    // Create arguments
+            wm_scan_data* scan_info = NULL;
 
-    wm_strcat(&command, ciscat_script, '\0');
+            // Create arguments
+            wm_strcat(&command, ciscat_script, '\0');
 
-    // Accepting Terms of Use
+            switch (eval->type) {
+            case WM_CISCAT_XCCDF:
+                wm_strcat(&command, "-b", ' ');
+                wm_strcat(&command, eval->path, ' ');
 
-    wm_strcat(&command, "-a", ' ');
-    //TODO: NR - replace above with below switch
-/*
-    switch (ciscat->ciscat_version) {
-        case "v4":
-            //v4 doesn't need an acceptance to terms.
-            // crashes if (-a) is passed.
-            break;
-        default:
-            //all versions of v3 use terms, agree to use
-            wm_strcat(&command, "-a", ' ');
-    }
-*/
+                if (eval->profile) {
+                    wm_strcat(&command, "-p", ' ');
+                    wm_strcat(&command, eval->profile, ' ');
+                }
+                break;
+            case WM_CISCAT_OVAL:
+                mterror(WM_CISCAT_LOGTAG, "OVAL is an invalid content type. Exiting...");
+                os_free(command);
+                pthread_exit(NULL);
+                break;
+            default:
+                mterror(WM_CISCAT_LOGTAG, "Unspecified content type for file '%s'. This shouldn't happen.", eval->path);
+                os_free(command);
+                pthread_exit(NULL);
+            }
 
-    switch (eval->type) {
-    case WM_CISCAT_XCCDF:
-        wm_strcat(&command, "-b", ' ');
-        wm_strcat(&command, eval->path, ' ');
-
-        if (eval->profile) {
-            wm_strcat(&command, "-p", ' ');
-            wm_strcat(&command, eval->profile, ' ');
-        }
-        break;
-    case WM_CISCAT_OVAL:
-        mterror(WM_CISCAT_LOGTAG, "OVAL is an invalid content type. Exiting...");
-        os_free(command);
-        pthread_exit(NULL);
-        break;
-    default:
-        mterror(WM_CISCAT_LOGTAG, "Unspecified content type for file '%s'. This shouldn't happen.", eval->path);
-        os_free(command);
-        pthread_exit(NULL);
-    }
-
-    // Specify location for reports
-
-    wm_strcat(&command, "-r", ' ');
-    wm_strcat(&command, WM_CISCAT_REPORTS, ' ');
-
-    // Set reports file name
-
-    wm_strcat(&command, "-rn", ' ');
-    wm_strcat(&command, "ciscat-report", ' ');
-
-    // Get xml reports
-
-    wm_strcat(&command, "-x", ' ');
-
-    // Get txt reports
-
-    wm_strcat(&command, "-t", ' ');
-
-    // Do not create HTML report
-
-    wm_strcat(&command, "-n", ' ');
-
-    // Add not selected checks
-
-    wm_strcat(&command, "-y", ' ');
-    
-    //TODO: NR - Replace above with switch below
-/*
-    switch (ciscat->ciscat_version){
-        case "v4":
-            //build command switches for v4 usage
 
             //specify reports location
             wm_strcat(&command, "-rd", ' ');
@@ -674,17 +627,51 @@ void wm_ciscat_run(wm_ciscat_eval *eval, char *path, int id, const char * java_p
 
             //specify to build text reports as well
             wm_strcat(&command, "-txt", ' ');
+
             break;
         default:
-            //build commands for v3
+
+            //by default assume v3
+            char *ciscat_script = "./CIS-CAT.sh";
+    
+            wm_scan_data* scan_info = NULL;
+    
+    
+            // Create arguments
+            wm_strcat(&command, ciscat_script, '\0');
+
+            // Accepting Terms of Use
+            wm_strcat(&command, "-a", ' ');
+
+            switch (eval->type) {
+            case WM_CISCAT_XCCDF:
+                wm_strcat(&command, "-b", ' ');
+                wm_strcat(&command, eval->path, ' ');
+
+                if (eval->profile) {
+                    wm_strcat(&command, "-p", ' ');
+                    wm_strcat(&command, eval->profile, ' ');
+                }
+                break;
+            case WM_CISCAT_OVAL:
+                mterror(WM_CISCAT_LOGTAG, "OVAL is an invalid content type. Exiting...");
+                os_free(command);
+                pthread_exit(NULL);
+                break;
+            default:
+                mterror(WM_CISCAT_LOGTAG, "Unspecified content type for file '%s'. This shouldn't happen.", eval->path);
+                os_free(command);
+                pthread_exit(NULL);
+            }
+
 
             // Specify location for reports
             wm_strcat(&command, "-r", ' ');
-            wm_strcat(&command, TMP_DIR, ' ');
+            wm_strcat(&command, WM_CISCAT_REPORTS, ' ');
 
             // Set reports file name
             wm_strcat(&command, "-rn", ' ');
-            wm_strcat(&command, "ciscat-report-v3", ' ');
+            wm_strcat(&command, "ciscat-report", ' ');
 
             // Get xml reports
             wm_strcat(&command, "-x", ' ');
@@ -698,7 +685,7 @@ void wm_ciscat_run(wm_ciscat_eval *eval, char *path, int id, const char * java_p
             // Add not selected checks
             wm_strcat(&command, "-y", ' ');
     }
-*/
+
 
     // Send rootcheck message
 
