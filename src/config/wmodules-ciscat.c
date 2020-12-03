@@ -175,7 +175,7 @@ int wm_ciscat_read(const OS_XML *xml, xml_node **nodes, wmodule *module)
         } else if (!strcmp(nodes[i]->element, XML_CISCAT_PATH)) {
             ciscat->ciscat_path = strdup(nodes[i]->content);
         } else if (!strcmp(nodes[i]->element, XML_CISCAT_VERSION)) {
-        ciscat->ciscat_version = strdup(nodes[i]->content);
+            ciscat->ciscat_version = strdup(nodes[i]->content);
         } else if (is_sched_tag(nodes[i]->element)) {
             // Do nothing
         } else {
