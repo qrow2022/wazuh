@@ -11,7 +11,6 @@
 //TODO: NR - Uncomment
  //#ifdef ENABLE_CISCAT
 #include "wmodules.h"
-#include <dirent.h>
 
 static wm_ciscat *ciscat;                             // Pointer to configuration
 static wm_rule_data *head;                            // Pointer to head of rules data
@@ -275,17 +274,28 @@ int wm_ciscat_version_check(char * ciscat_version_input) {
     if (!ciscat_major || !ciscat_minor || !ciscat_patch) {
         merror(WM_CISCAT_LOGTAG, "Provided CIS-CAT version is invalid.");
         merror(WM_CISCAT_LOGTAG, "Invalid CIS-CAT version input was: " + ciscat_version_input);
+        merror(WM_CISCAT_LOGTAG, "Please provide the CIS-CAT version in the format of: major.minor.patch , Example: 4.2.0");
         ciscat->flags.error = 1;
         return -1;
     }
 
     //check the version
 
-    if (atoi(ciscat_major) >= 4) {
+    if (atoi(ciscat_major) >= 4 && (atoi(ciscat_minor) >= 2)) {
 
         //The CIS-CAT version is v4
         //send that back to the program
         return 4;
+
+    }else if (atoi(ciscat_major) == 4 && (atoi(ciscat_minor) == 1)) {
+
+        //The CIS-CAT version is probably v4.1.0
+            //v4.1.0 uses timestamps as part of the report filename.
+            //v4.2.0 adds a switch to turn the timestamps off
+        // recommend to the user to upgrade to atleast that version and exit.
+        merror(WM_CISCAT_LOGTAG, "Provided CIS-CAT version is probably 4.1.0. Please upgrade to 4.2.0 or above.");
+        ciscat->flags.error = 1;
+        return -1;
 
     }else if (atoi(ciscat_major) == 3 && (atoi(ciscat_minor) >= 0) && (atoi(ciscat_patch) >= 43)) {
         
@@ -420,13 +430,15 @@ void wm_ciscat_run(wm_ciscat_eval *eval, char *path, int id, const char * java_p
             wm_strcat(&command, TMP_DIR, ' ');
 
             //specify leading name for report
-                //v4 also appends timestamp to report name
-                //timestamp format
             wm_strcat(&command, "-rp", ' ');
             wm_strcat(&command, "ciscat-report", ' ');
 
             //specify to build text reports as well
             wm_strcat(&command, "-txt", ' ');
+
+            // Remove timestamp from report filename
+                // supported on v4.2.0 and above
+            wm_strcat(&command, "-nts", ' ');
             
 
             break;
@@ -628,6 +640,10 @@ void wm_ciscat_run(wm_ciscat_eval *eval, char *path, int id, const char * java_p
             //specify to build text reports as well
             wm_strcat(&command, "-txt", ' ');
 
+            // Remove timestamp from report filename
+                // supported on v4.2.0 and above
+            wm_strcat(&command, "-nts", ' ');
+
             break;
         default:
 
@@ -814,69 +830,10 @@ char* wm_ciscat_get_profile() {
         case "4":
             //Ciscat v4
 
-            //prefix of v4 report name
-                //v4 automatically adds a "-" to the provided
-                //prefix and adds a timestamp for the time that the
-                //eval is ran at.
-            char* ciscat_v4_report_prefix;
-            ciscat_v4_report_prefix = "ciscat-report-";
-            char* file_being_checked = NULL;    //the file we are looking at
-            char* ciscat_v4_txt_report_extension;   // the extension we want
-            ciscat_v4_txt_report_extension = "-ARF.xml";
-            char* correct_file = NULL;  // the correct file that we find.
-
-            struct dirent* folder_entry;  //create a pointer for directory entry
-            DIR* folder_to_scan = opendir(TMP_DIR);     //access the temp directory
-
-            char* finalized_report_name = NULL;
-
-            //check if the directory can be opened.
-            if (folder_to_scan == NULL) {
-                printf("Could not open Temp Directory");
-                ciscat->flags.error = 1;
-                break;
-            }
-
-
-            //while there are files to check within the directory
-                //keep checking them.
-            while ((folder_entry = readdir(folder_to_scan)) != NULL) {
-
-                //store the name of the currently being
-                    //examined file for analysis
-                file_being_checked = folder_entry->d_name;
-
-                //compare the filename with our prefix.
-                    //if they are the same, then continue
-                    //(only check the first 14 characters, ignore all else)
-                if (strnicmp(file_being_checked, ciscat_v4_report_prefix, 14) == 0) {
-
-                    //now check if the extension is correct.
-                    if ((strstr(file_being_checked, ciscat_v4_txt_report_extension)) != NULL) {
-
-                        //We found the correct file,
-                            //save that filename and exit the loop.
-                        correct_file = file_being_checked;
-                        break;
-
-                    }
-
-                }
-
-            }
-
             #ifdef WIN32
-                //we need to add backslash for windows
-                finalized_report_name = "\\";
-                strcat(finalized_report_name, correct_file);
-
-                snprintf(file, OS_MAXSTR - 1, "%s%s", TMP_DIR, finalized_report_name);
+                  snprintf(file, OS_MAXSTR - 1, "%s%s", TMP_DIR, "\\ciscat-report-ARF.xml");
             #else
-                //add the forward slash for all others
-                finalized_report_name = "/";
-                strcat(finalized_report_name, correct_file);
-
-                snprintf(file, OS_MAXSTR - 1, "%s%s", WM_CISCAT_REPORTS, finalized_report_name);
+                snprintf(file, OS_MAXSTR - 1, "%s%s", WM_CISCAT_REPORTS, "/ciscat-report-ARF.xml");
             #endif
 
 
@@ -943,89 +900,11 @@ wm_scan_data* wm_ciscat_txt_parser(){
     // Define report location
 
 
-    int ciscat_version_check_response = NULL;
-    ciscat_version_check_response = wm_ciscat_version_check(ciscat->ciscat_version);
-
-    switch (ciscat_version_check_response) {
-        case "4":
-            //Ciscat v4
-            
-            //prefix of v4 report name
-                //v4 automatically adds a "-" to the provided
-                //prefix and adds a timestamp for the time that the
-                //eval is ran at.
-            char *ciscat_v4_report_prefix;
-            ciscat_v4_report_prefix = "ciscat-report-";
-            char *file_being_checked = NULL;    //the file we are looking at
-            char *ciscat_v4_txt_report_extension;   // the extension we want
-            ciscat_v4_txt_report_extension = ".txt";
-            char *correct_file = NULL;  // the correct file that we find.
-
-            struct dirent* folder_entry;  //create a pointer for directory entry
-            DIR* folder_to_scan = opendir(TMP_DIR);     //access the temp directory
-
-            char *finalized_report_name = NULL;
-
-            //check if the directory can be opened.
-            if (folder_to_scan == NULL) {
-                printf("Could not open Temp Directory");
-                ciscat->flags.error = 1;
-                break;
-            }
-
-
-            //while there are files to check within the directory
-                //keep checking them.
-            while ((folder_entry = readdir(folder_to_scan)) != NULL) {
-
-                //store the name of the currently being
-                    //examined file for analysis
-                file_being_checked = folder_entry->d_name;
-
-                //compare the filename with our prefix.
-                    //if they are the same, then continue
-                    //(only check the first 14 characters, ignore all else)
-                if (strnicmp(file_being_checked, ciscat_v4_report_prefix, 14) == 0) {
-
-                    //now check if the extension is correct.
-                    if ((strstr(file_being_checked, ciscat_v4_txt_report_extension)) != NULL) {
-
-                        //We found the correct file,
-                            //save that filename and exit the loop.
-                        correct_file = file_being_checked;
-                        break;
-
-                    }
-
-                }
-
-            }
-
-            #ifdef WIN32
-
-                //we need to add backslash for windows
-                finalized_report_name = "\\";
-                strcat(finalized_report_name, correct_file);
-
-                snprintf(file, OS_MAXSTR - 1, "%s%s", TMP_DIR, finalized_report_name);
-            #else
-                //add the forward slash for all others
-                finalized_report_name = "/";
-                strcat(finalized_report_name, correct_file);
-
-                snprintf(file, OS_MAXSTR - 1, "%s%s", WM_CISCAT_REPORTS, finalized_report_name);
-            #endif
-            
-            break;
-        default:
-            //all other versions of Ciscat
-            //currently only v3
-            #ifdef WIN32
-                snprintf(file, OS_MAXSTR - 1, "%s%s", TMP_DIR, "\\ciscat-report.txt");
-            #else
-                snprintf(file, OS_MAXSTR - 1, "%s%s", WM_CISCAT_REPORTS, "/ciscat-report.txt");
-            #endif
-    }
+    #ifdef WIN32
+        snprintf(file, OS_MAXSTR - 1, "%s%s", TMP_DIR, "\\ciscat-report.txt");
+    #else
+        snprintf(file, OS_MAXSTR - 1, "%s%s", WM_CISCAT_REPORTS, "/ciscat-report.txt");
+    #endif
 
 
     if ((fp = fopen(file, "r"))){
@@ -1232,73 +1111,13 @@ void wm_ciscat_preparser(){
     case "4":
         //Ciscat v4
 
-        //prefix of v4 report name
-            //v4 automatically adds a "-" to the provided
-            //prefix and adds a timestamp for the time that the
-            //eval is ran at.
-        char* ciscat_v4_report_prefix;
-        ciscat_v4_report_prefix = "ciscat-report-";
-        char* file_being_checked = NULL;    //the file we are looking at
-        char* ciscat_v4_txt_report_extension;   // the extension we want
-        ciscat_v4_txt_report_extension = "-ARF.xml";
-        char* correct_file = NULL;  // the correct file that we find.
-
-        struct dirent* folder_entry;  //create a pointer for directory entry
-        DIR* folder_to_scan = opendir(TMP_DIR);     //access the temp directory
-
-        char* finalized_report_name = NULL;
-
-        //check if the directory can be opened.
-        if (folder_to_scan == NULL) {
-            printf("Could not open Temp Directory");
-            ciscat->flags.error = 1;
-            break;
-        }
-
-
-        //while there are files to check within the directory
-            //keep checking them.
-        while ((folder_entry = readdir(folder_to_scan)) != NULL) {
-
-            //store the name of the currently being
-                //examined file for analysis
-            file_being_checked = folder_entry->d_name;
-
-            //compare the filename with our prefix.
-                //if they are the same, then continue
-                //(only check the first 14 characters, ignore all else)
-            if (strnicmp(file_being_checked, ciscat_v4_report_prefix, 14) == 0) {
-
-                //now check if the extension is correct.
-                if ((strstr(file_being_checked, ciscat_v4_txt_report_extension)) != NULL) {
-
-                    //We found the correct file,
-                        //save that filename and exit the loop.
-                    correct_file = file_being_checked;
-                    break;
-
-                }
-
-            }
-
-        }
-
         #ifdef WIN32
-            //we need to add backslash for windows
-            finalized_report_name = "\\";
-            strcat(finalized_report_name, correct_file);
-
-            snprintf(in_file, OS_MAXSTR - 1, "%s%s", TMP_DIR, finalized_report_name);
+            snprintf(in_file, OS_MAXSTR - 1, "%s%s", TMP_DIR, "\\ciscat-report-ARF.xml);
             snprintf(out_file, OS_MAXSTR - 1, "%s%s", TMP_DIR, "\\ciscat-tmp.xml");
         #else
-            //add the forward slash for all others
-            finalized_report_name = "/";
-            strcat(finalized_report_name, correct_file);
-
-            snprintf(in_file, OS_MAXSTR - 1, "%s%s", WM_CISCAT_REPORTS, finalized_report_name);
+            snprintf(in_file, OS_MAXSTR - 1, "%s%s", WM_CISCAT_REPORTS, "/ciscat-report-ARF.xml");
             snprintf(out_file, OS_MAXSTR - 1, "%s%s", WM_CISCAT_REPORTS, "/ciscat-tmp.xml");
         #endif
-
 
         break;
 
@@ -1924,7 +1743,7 @@ cJSON *wm_ciscat_dump(const wm_ciscat * ciscat) {
     if (ciscat->flags.enabled) cJSON_AddStringToObject(wm_cscat,"disabled","no"); else cJSON_AddStringToObject(wm_cscat,"disabled","yes");
     if (ciscat->flags.scan_on_start) cJSON_AddStringToObject(wm_cscat,"scan-on-start","yes"); else cJSON_AddStringToObject(wm_cscat,"scan-on-start","no");
 //TODO: NR - get the version from the config file and push it into the pointer.
-    //if (ciscat->ciscat_version) cJSON_AddItemToObject(wm_cscat,"ciscat_version",ciscat->ciscat_version);
+    if (ciscat->ciscat_version) cJSON_AddItemToObject(wm_cscat,"ciscat_version",ciscat->ciscat_version);
 
     sched_scan_dump(&(ciscat->scan_config), wm_cscat);
 
