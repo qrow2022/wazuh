@@ -22,7 +22,6 @@ static const char *XML_PROFILE = "profile";
 static const char *XML_JAVA_PATH = "java_path";
 static const char *XML_CISCAT_PATH = "ciscat_path";
 static const char *XML_DISABLED = "disabled";
-//TODO: NR - Read XML configs and define ciscat_version
 static const char *XML_CISCAT_VERSION = "ciscat_version";
 
 // Parse XML
